@@ -67,11 +67,13 @@ jobs:
         run: ia64-linux-gnu-gcc --version
 
       - name: Install Python build dependencies
+        working-directory: ${{ github.workspace }}
         run: pip install --upgrade -r pip-requirements.txt
 
       - name: Build BaseTools
         # BaseTools must be compiled for the *host* (x86-64); the cross
         # toolchain is only used for the firmware payload itself.
+        working-directory: ${{ github.workspace }}
         run: make -C BaseTools -j$(nproc)
 
       - name: Initialize edk2 build environment
@@ -79,12 +81,13 @@ jobs:
         # PATH.  Each step in a GitHub Actions job runs in a fresh shell, so
         # we capture those vars here and forward them to subsequent steps via
         # $GITHUB_ENV and $GITHUB_PATH.
+        working-directory: ${{ github.workspace }}
         run: |
-          . edksetup.sh
-          echo "WORKSPACE=$WORKSPACE"         >> "$GITHUB_ENV"
+          . "$GITHUB_WORKSPACE/edksetup.sh"
+          echo "WORKSPACE=$WORKSPACE"           >> "$GITHUB_ENV"
           echo "EDK_TOOLS_PATH=$EDK_TOOLS_PATH" >> "$GITHUB_ENV"
-          echo "CONF_PATH=$CONF_PATH"         >> "$GITHUB_ENV"
-          echo "PYTHONHASHSEED=1"             >> "$GITHUB_ENV"
+          echo "CONF_PATH=$CONF_PATH"           >> "$GITHUB_ENV"
+          echo "PYTHONHASHSEED=1"               >> "$GITHUB_ENV"
           echo "$EDK_TOOLS_PATH/BinWrappers/PosixLike" >> "$GITHUB_PATH"
 
       - name: Inject GCC_IPF toolchain into tools_def
@@ -158,6 +161,7 @@ jobs:
       - name: Build MdePkg for IA-64
         # MdePkg is the lowest-level package and a good smoke-test for the
         # toolchain.  ARCH=IPF selects the IA-64 target.
+        working-directory: ${{ github.workspace }}
         run: |
           build \
             -a IPF \
