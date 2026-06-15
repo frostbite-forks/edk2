@@ -91,50 +91,11 @@ jobs:
           echo "$EDK_TOOLS_PATH/BinWrappers/PosixLike" >> "$GITHUB_PATH"
 
       - name: Inject GCC_IPF toolchain into tools_def
-        # Appends a GCC_IPF toolchain block to tools_def.txt.
-        # Rules:
-        #   - The heredoc delimiter (TOOLDEF) must be at column 0 so the shell
-        #     does not strip or misparse it.
-        #   - tools_def syntax does NOT support backslash line continuation;
-        #     every DEFINE and assignment must be a single unbroken line.
-        #   - Leading whitespace on each line would be included literally and
-        #     break the "KEY = VALUE" parser, so content lines start at col 0.
-        run: |
-          cat >> "$CONF_PATH/tools_def.txt" << 'TOOLDEF'
-# GCC_IPF - IA-64 (Itanium) cross-compile with gcc-ia64-linux-gnu
-DEFINE GCC_IPF_ALL_CC_FLAGS = -g -fshort-wchar -fno-strict-aliasing -Wall -Werror -Wno-array-bounds -ffunction-sections -fdata-sections -include AutoGen.h -fno-common -DSTRING_ARRAY_NAME=$(BASE_NAME)Strings -fno-short-enums -fsigned-char -fno-stack-protector -fno-asynchronous-unwind-tables -fno-unwind-tables -DMDE_CPU_IPF
-DEFINE GCC_IPF_CC_FLAGS = DEF(GCC_IPF_ALL_CC_FLAGS)
-DEFINE GCC_IPF_ASM_FLAGS = -c -x assembler -imacros AutoGen.h
-DEFINE GCC_IPF_DLINK_FLAGS = -nostdlib -n -q --gc-sections -z common-page-size=0x20 --entry $(IMAGE_ENTRY_POINT) -u $(IMAGE_ENTRY_POINT) -Map $(DEST_DIR_DEBUG)/$(BASE_NAME).map
-DEFINE GCC_IPF_DLINK2_FLAGS = -Wl,--script=$(EDK_TOOLS_PATH)/Scripts/GccBase.lds
-DEFINE GCC_IPF_RC_FLAGS = -I binary -O elf64-ia64-little -B ia64 --rename-section .data=.hii
-*_GCC_IPF_CC_PATH = ENV(GCC_IPF_PREFIX)gcc
-*_GCC_IPF_SLINK_PATH = ENV(GCC_IPF_PREFIX)gcc-ar
-*_GCC_IPF_DLINK_PATH = ENV(GCC_IPF_PREFIX)gcc
-*_GCC_IPF_ASLDLINK_PATH = ENV(GCC_IPF_PREFIX)gcc
-*_GCC_IPF_ASM_PATH = ENV(GCC_IPF_PREFIX)gcc
-*_GCC_IPF_PP_PATH = ENV(GCC_IPF_PREFIX)gcc
-*_GCC_IPF_VFRPP_PATH = ENV(GCC_IPF_PREFIX)gcc
-*_GCC_IPF_ASLCC_PATH = ENV(GCC_IPF_PREFIX)gcc
-*_GCC_IPF_ASLPP_PATH = ENV(GCC_IPF_PREFIX)gcc
-*_GCC_IPF_RC_PATH = ENV(GCC_IPF_PREFIX)objcopy
-*_GCC_IPF_OBJCOPY_PATH = ENV(GCC_IPF_PREFIX)objcopy
-*_GCC_IPF_ASLCC_FLAGS = -x c -std=c99 -fno-lto
-*_GCC_IPF_ASLDLINK_FLAGS = -nostdlib -Wl,-n,-q,--gc-sections -z common-page-size=0x20
-*_GCC_IPF_ASM_FLAGS = DEF(GCC_IPF_ASM_FLAGS)
-*_GCC_IPF_OBJCOPY_FLAGS =
-*_GCC_IPF_PP_FLAGS = -E -x assembler-with-cpp -include AutoGen.h
-*_GCC_IPF_ASLPP_FLAGS = -E -x c -include AutoGen.h
-*_GCC_IPF_VFRPP_FLAGS = -x c -E -P -DVFRCOMPILE --include $(MODULE_NAME)StrDefs.h
-DEBUG_GCC_IPF_CC_FLAGS = DEF(GCC_IPF_CC_FLAGS) -O0
-RELEASE_GCC_IPF_CC_FLAGS = DEF(GCC_IPF_CC_FLAGS) -Os
-NOOPT_GCC_IPF_CC_FLAGS = DEF(GCC_IPF_CC_FLAGS) -O0
-DEBUG_GCC_IPF_DLINK_FLAGS = DEF(GCC_IPF_DLINK_FLAGS)
-RELEASE_GCC_IPF_DLINK_FLAGS = DEF(GCC_IPF_DLINK_FLAGS)
-NOOPT_GCC_IPF_DLINK_FLAGS = DEF(GCC_IPF_DLINK_FLAGS)
-*_GCC_IPF_DLINK2_FLAGS = DEF(GCC_IPF_DLINK2_FLAGS)
-*_GCC_IPF_RC_FLAGS = DEF(GCC_IPF_RC_FLAGS)
-TOOLDEF
+        # The toolchain snippet lives in a checked-in file so it never needs
+        # to be embedded in a heredoc inside a YAML block scalar (which causes
+        # indentation and column-0 conflicts that break both the YAML parser
+        # and the tools_def KEY=VALUE parser).
+        run: cat "$GITHUB_WORKSPACE/.github/workflows/gcc-ipf-toolchain.def" >> "$CONF_PATH/tools_def.txt"
 
       - name: Build MdePkg for IA-64
         # MdePkg is the lowest-level package and a good smoke-test for the

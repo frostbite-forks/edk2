@@ -1,0 +1,35 @@
+# GCC_IPF - IA-64 (Itanium) cross-compile with gcc-ia64-linux-gnu
+# Appended to Conf/tools_def.txt at CI build time.
+# Rules: no backslash continuation; every entry must be one unbroken line.
+DEFINE GCC_IPF_ALL_CC_FLAGS = -g -fshort-wchar -fno-strict-aliasing -Wall -Werror -Wno-array-bounds -ffunction-sections -fdata-sections -include AutoGen.h -fno-common -DSTRING_ARRAY_NAME=$(BASE_NAME)Strings -fno-short-enums -fsigned-char -fno-stack-protector -fno-asynchronous-unwind-tables -fno-unwind-tables -DMDE_CPU_IPF
+DEFINE GCC_IPF_CC_FLAGS = DEF(GCC_IPF_ALL_CC_FLAGS)
+DEFINE GCC_IPF_ASM_FLAGS = -c -x assembler -imacros AutoGen.h
+DEFINE GCC_IPF_DLINK_FLAGS = -nostdlib -n -q --gc-sections -z common-page-size=0x20 --entry $(IMAGE_ENTRY_POINT) -u $(IMAGE_ENTRY_POINT) -Map $(DEST_DIR_DEBUG)/$(BASE_NAME).map
+DEFINE GCC_IPF_DLINK2_FLAGS = -Wl,--script=$(EDK_TOOLS_PATH)/Scripts/GccBase.lds
+DEFINE GCC_IPF_RC_FLAGS = -I binary -O elf64-ia64-little -B ia64 --rename-section .data=.hii
+*_GCC_IPF_CC_PATH = ENV(GCC_IPF_PREFIX)gcc
+*_GCC_IPF_SLINK_PATH = ENV(GCC_IPF_PREFIX)gcc-ar
+*_GCC_IPF_DLINK_PATH = ENV(GCC_IPF_PREFIX)gcc
+*_GCC_IPF_ASLDLINK_PATH = ENV(GCC_IPF_PREFIX)gcc
+*_GCC_IPF_ASM_PATH = ENV(GCC_IPF_PREFIX)gcc
+*_GCC_IPF_PP_PATH = ENV(GCC_IPF_PREFIX)gcc
+*_GCC_IPF_VFRPP_PATH = ENV(GCC_IPF_PREFIX)gcc
+*_GCC_IPF_ASLCC_PATH = ENV(GCC_IPF_PREFIX)gcc
+*_GCC_IPF_ASLPP_PATH = ENV(GCC_IPF_PREFIX)gcc
+*_GCC_IPF_RC_PATH = ENV(GCC_IPF_PREFIX)objcopy
+*_GCC_IPF_OBJCOPY_PATH = ENV(GCC_IPF_PREFIX)objcopy
+*_GCC_IPF_ASLCC_FLAGS = -x c -std=c99 -fno-lto
+*_GCC_IPF_ASLDLINK_FLAGS = -nostdlib -Wl,-n,-q,--gc-sections -z common-page-size=0x20
+*_GCC_IPF_ASM_FLAGS = DEF(GCC_IPF_ASM_FLAGS)
+*_GCC_IPF_OBJCOPY_FLAGS =
+*_GCC_IPF_PP_FLAGS = -E -x assembler-with-cpp -include AutoGen.h
+*_GCC_IPF_ASLPP_FLAGS = -E -x c -include AutoGen.h
+*_GCC_IPF_VFRPP_FLAGS = -x c -E -P -DVFRCOMPILE --include $(MODULE_NAME)StrDefs.h
+DEBUG_GCC_IPF_CC_FLAGS = DEF(GCC_IPF_CC_FLAGS) -O0
+RELEASE_GCC_IPF_CC_FLAGS = DEF(GCC_IPF_CC_FLAGS) -Os
+NOOPT_GCC_IPF_CC_FLAGS = DEF(GCC_IPF_CC_FLAGS) -O0
+DEBUG_GCC_IPF_DLINK_FLAGS = DEF(GCC_IPF_DLINK_FLAGS)
+RELEASE_GCC_IPF_DLINK_FLAGS = DEF(GCC_IPF_DLINK_FLAGS)
+NOOPT_GCC_IPF_DLINK_FLAGS = DEF(GCC_IPF_DLINK_FLAGS)
+*_GCC_IPF_DLINK2_FLAGS = DEF(GCC_IPF_DLINK2_FLAGS)
+*_GCC_IPF_RC_FLAGS = DEF(GCC_IPF_RC_FLAGS)
