@@ -163,13 +163,14 @@ jobs:
         # toolchain.  ARCH=IPF selects the IA-64 target.
         working-directory: ${{ github.workspace }}
         run: |
+          mkdir -p Build
           build \
             -a IPF \
             -t GCC_IPF \
             -b ${{ matrix.target }} \
             -p MdePkg/MdePkg.dsc \
             -n $(nproc) \
-            --log=Build/ia64_${{ matrix.target }}_build.log
+            -j Build/ia64_${{ matrix.target }}_build.log
 
       - name: Upload build artifacts
         uses: actions/upload-artifact@v4
