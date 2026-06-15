@@ -1,0 +1,171 @@
+# @file ia64-efi-build.yml
+#
+# Builds edk2 for the IA-64 (Itanium/IPF) architecture using a GCC
+# ia64-linux-gnu cross-toolchain.  Because the current tools_def.template
+# no longer carries a GCC_IPF toolchain section, this workflow injects a
+# custom tools_def snippet that mirrors the GCC cross-compile pattern used
+# by other architectures (AARCH64, RISCV64, etc.).
+#
+##
+# Copyright (c) Microsoft Corporation.
+# SPDX-License-Identifier: BSD-2-Clause-Patent
+##
+
+name: IA-64 EFI Build
+
+on:
+  workflow_dispatch:
+  push:
+    branches: ['master']
+  pull_request:
+    branches: ['master']
+
+env:
+  # ia64-linux-gnu cross-compiler prefix installed by gcc-ia64-linux-gnu
+  GCC_IPF_PREFIX: ia64-linux-gnu-
+  PYTHON_VERSION: '3.12'
+
+jobs:
+  build_ia64:
+    name: Build IA-64 EFI (${{ matrix.target }})
+    runs-on: ubuntu-latest
+
+    container:
+      image: ghcr.io/tianocore/containers/fedora-43-dev:latest
+
+    strategy:
+      fail-fast: false
+      matrix:
+        target: [DEBUG, RELEASE]
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Set safe git directory
+        run: git config --global --add safe.directory '*'
+
+      - name: Install ia64-linux-gnu cross-toolchain
+        # The fedora-43-dev container is DNF-based; fall back to apt for
+        # standard ubuntu runners.  We install both and let the shell pick
+        # whichever succeeds.
+        run: |
+          if command -v dnf &>/dev/null; then
+            dnf install -y gcc-ia64-linux-gnu binutils-ia64-linux-gnu nasm acpica-tools
+          elif command -v apt-get &>/dev/null; then
+            apt-get update -qq
+            apt-get install -y --no-install-recommends \
+              gcc-ia64-linux-gnu binutils-ia64-linux-gnu nasm acpica-tools
+          else
+            echo "ERROR: No supported package manager found" >&2
+            exit 1
+          fi
+
+      - name: Verify cross-compiler
+        run: ia64-linux-gnu-gcc --version
+
+      - name: Install Python build dependencies
+        run: pip install --upgrade -r pip-requirements.txt
+
+      - name: Build BaseTools
+        # BaseTools must be compiled for the *host* (x86-64); the cross
+        # toolchain is only used for the firmware payload itself.
+        run: make -C BaseTools -j$(nproc)
+
+      - name: Source build environment
+        run: echo "source edksetup.sh" >> $GITHUB_ENV
+
+      - name: Inject GCC_IPF toolchain into tools_def
+        # Appends a minimal GCC_IPF toolchain block to the active
+        # tools_def.txt so the build system can resolve tool paths.
+        # The block follows the same structure as GCC_RISCV64 / GCC_AARCH64.
+        run: |
+          . edksetup.sh
+          cat >> "$CONF_PATH/tools_def.txt" << 'TOOLDEF'
+
+          ####################################################################################
+          #
+          # GCC_IPF - IA-64 (Itanium) cross-compile with gcc-ia64-linux-gnu
+          #
+          ####################################################################################
+          DEFINE GCC_IPF_ALL_CC_FLAGS  = -g -fshort-wchar -fno-strict-aliasing -Wall \
+            -Werror -Wno-array-bounds -ffunction-sections -fdata-sections \
+            -include AutoGen.h -fno-common \
+            -DSTRING_ARRAY_NAME=$(BASE_NAME)Strings \
+            -fno-short-enums -fsigned-char -fno-stack-protector \
+            -fno-asynchronous-unwind-tables -fno-unwind-tables \
+            -DMDE_CPU_IPF -mfixed-range=f32-f127
+
+          DEFINE GCC_IPF_CC_FLAGS      = DEF(GCC_IPF_ALL_CC_FLAGS)
+          DEFINE GCC_IPF_ASM_FLAGS     = -c -x assembler -imacros AutoGen.h
+          DEFINE GCC_IPF_DLINK_FLAGS   = \
+            -nostdlib -n -q --gc-sections \
+            -z common-page-size=0x20 \
+            --entry $(IMAGE_ENTRY_POINT) \
+            -u $(IMAGE_ENTRY_POINT) \
+            -Map $(DEST_DIR_DEBUG)/$(BASE_NAME).map
+          DEFINE GCC_IPF_DLINK2_FLAGS  = -Wl,--script=$(EDK_TOOLS_PATH)/Scripts/GccBase.lds
+          DEFINE GCC_IPF_RC_FLAGS      = -I binary -O elf64-ia64-little -B ia64 \
+            --rename-section .data=.hii
+
+          *_GCC_IPF_CC_PATH       = ENV(GCC_IPF_PREFIX)gcc
+          *_GCC_IPF_SLINK_PATH    = ENV(GCC_IPF_PREFIX)gcc-ar
+          *_GCC_IPF_DLINK_PATH    = ENV(GCC_IPF_PREFIX)gcc
+          *_GCC_IPF_ASLDLINK_PATH = ENV(GCC_IPF_PREFIX)gcc
+          *_GCC_IPF_ASM_PATH      = ENV(GCC_IPF_PREFIX)gcc
+          *_GCC_IPF_PP_PATH       = ENV(GCC_IPF_PREFIX)gcc
+          *_GCC_IPF_VFRPP_PATH    = ENV(GCC_IPF_PREFIX)gcc
+          *_GCC_IPF_ASLCC_PATH    = ENV(GCC_IPF_PREFIX)gcc
+          *_GCC_IPF_ASLPP_PATH    = ENV(GCC_IPF_PREFIX)gcc
+          *_GCC_IPF_RC_PATH       = ENV(GCC_IPF_PREFIX)objcopy
+          *_GCC_IPF_OBJCOPY_PATH  = ENV(GCC_IPF_PREFIX)objcopy
+
+          *_GCC_IPF_ASLCC_FLAGS     = -x c -std=c99 -fno-lto
+          *_GCC_IPF_ASLDLINK_FLAGS  = -nostdlib -Wl,-n,-q,--gc-sections \
+            -z common-page-size=0x20
+          *_GCC_IPF_ASM_FLAGS       = DEF(GCC_IPF_ASM_FLAGS)
+          *_GCC_IPF_OBJCOPY_FLAGS   =
+          *_GCC_IPF_PP_FLAGS        = -E -x assembler-with-cpp \
+            -include AutoGen.h
+          *_GCC_IPF_ASLPP_FLAGS     = -E -x c -include AutoGen.h
+          *_GCC_IPF_VFRPP_FLAGS     = -x c -E -P \
+            -DVFRCOMPILE \
+            --include $(MODULE_NAME)StrDefs.h
+
+            DEBUG_GCC_IPF_CC_FLAGS  = DEF(GCC_IPF_CC_FLAGS) -O0
+          RELEASE_GCC_IPF_CC_FLAGS  = DEF(GCC_IPF_CC_FLAGS) -Os
+           NOOPT_GCC_IPF_CC_FLAGS   = DEF(GCC_IPF_CC_FLAGS) -O0
+
+            DEBUG_GCC_IPF_DLINK_FLAGS  = DEF(GCC_IPF_DLINK_FLAGS)
+          RELEASE_GCC_IPF_DLINK_FLAGS  = DEF(GCC_IPF_DLINK_FLAGS)
+           NOOPT_GCC_IPF_DLINK_FLAGS   = DEF(GCC_IPF_DLINK_FLAGS)
+
+          *_GCC_IPF_DLINK2_FLAGS  = DEF(GCC_IPF_DLINK2_FLAGS)
+          *_GCC_IPF_RC_FLAGS      = DEF(GCC_IPF_RC_FLAGS)
+          TOOLDEF
+
+      - name: Build MdePkg for IA-64
+        # MdePkg is the lowest-level package and a good smoke-test for the
+        # toolchain.  ARCH=IPF selects the IA-64 target.
+        run: |
+          . edksetup.sh
+          build \
+            -a IPF \
+            -t GCC_IPF \
+            -b ${{ matrix.target }} \
+            -p MdePkg/MdePkg.dsc \
+            -n $(nproc) \
+            --log=Build/ia64_${{ matrix.target }}_build.log
+
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: ia64-efi-${{ matrix.target }}
+          path: |
+            Build/MdePkg/${{ matrix.target }}_GCC_IPF/**/*.efi
+            Build/MdePkg/${{ matrix.target }}_GCC_IPF/**/*.lib
+            Build/ia64_${{ matrix.target }}_build.log
+            Build/*.txt
